@@ -1,0 +1,6 @@
+images in local storage displayed 2 times remove it
+create a seperate module for the images that are stored in local storage
+use shadcn ui
+store the images in systems local storage instead of browsers local storage 
+
+gallery grid function is not running
