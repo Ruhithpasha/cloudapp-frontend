@@ -1,6 +1,6 @@
 import React from "react";
 
-const BACKEND_URL = "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const LocalImageList = ({ images }) => (
   <div>
@@ -13,7 +13,7 @@ const LocalImageList = ({ images }) => (
           <li key={img.id} className="flex items-center gap-3 border p-2 rounded">
             <span>{img.originalName}</span>
             <img
-              src={`${BACKEND_URL}/local/${img.filename}`}
+              src={`${API_URL}/local/${img.filename}`}
               alt={img.originalName}
               className="w-16 h-16 object-cover border rounded"
               style={{ background: "#eee" }}

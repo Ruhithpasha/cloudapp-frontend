@@ -16,6 +16,7 @@ import RestoreDialog from "./RestoreDialog";
  */
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const LOCAL_STORAGE_IMAGE_KEY_PREFIX = 'cloud_image_';
 const LOCAL_BACKUP_IMAGE_KEY_PREFIX = 'backup_image_';
@@ -89,12 +90,16 @@ const ImageUploader = () => {
   // Updated to fetch images from the backend and render previews
   const loadGalleryImages = async () => {
     try {
+      console.log("Attempting to connect to backend at:", API_URL);
       console.log("Fetching gallery images from backend...");
-      const response = await fetch("/api/images");
+      const response = await fetch(`${API_URL}/images`);
+      console.log("Backend response status:", response.status);
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch images: ${response.statusText}`);
       }
       const images = await response.json();
+      console.log("Successfully received images from backend:", images);
       
       // Enhance images with local backup data
       const enhancedImages = images.map(image => {
@@ -120,6 +125,11 @@ const ImageUploader = () => {
       setGalleryImages(enhancedImages);
     } catch (err) {
       console.error("Error loading gallery images:", err);
+      console.error("Full error details:", {
+        message: err.message,
+        stack: err.stack,
+        apiUrl: API_URL
+      });
       setErrorMsg("Failed to load images: " + (err.message || "Network error. Please try again."));
       setGalleryImages([]); // Clear gallery on error
     }
@@ -204,7 +214,7 @@ const ImageUploader = () => {
 
     try {
       setUploading(true);
-      const response = await fetch(`/api/restore/${imageToRestore.id}`, {
+      const response = await fetch(`${API_URL}/restore/${imageToRestore.id}`, {
         method: "POST",
       });
 
@@ -367,7 +377,7 @@ const ImageUploader = () => {
       formData.append("backupData", JSON.stringify(backupData));
       formData.append("originalName", selectedFile.name);
 
-      const response = await fetch("/api/upload", {
+      const response = await fetch(`${API_URL}/upload`, {
         method: "POST",
         body: formData,
       });
