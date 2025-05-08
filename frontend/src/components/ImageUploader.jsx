@@ -74,7 +74,8 @@ const ImageUploader = () => {
       }
       const images = await response.json();
       console.log("Fetched images from backend:", images);
-      setGalleryImages(images.filter(img => img.status === 'available'));
+      // Show all images, including missing ones
+      setGalleryImages(images);
     } catch (err) {
       console.error("Error loading gallery images:", err);
       setGalleryImages([]); // Clear gallery on error
@@ -151,9 +152,37 @@ const ImageUploader = () => {
     setRestoreDialogOpen(true);
   };
 
+  // Updated `handleRestoreConfirm` to restore images to Cloudinary
   const handleRestoreConfirm = async () => {
-    console.log("Restoring image without localStorage backup.");
-    alert("Restore functionality is disabled as localStorage is no longer used.");
+    if (!imageToRestore || !imageToRestore.id) {
+      alert("No image selected for restoration.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const response = await fetch(`http://localhost:3001/restore/${imageToRestore.id}`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to restore image.");
+      }
+
+      const restoredImage = await response.json();
+      alert("Image restored successfully!");
+
+      // Update the gallery after restoration
+      loadGalleryImages();
+    } catch (err) {
+      console.error("Error restoring image:", err);
+      alert("Failed to restore image: " + err.message);
+    } finally {
+      setUploading(false);
+      setRestoreDialogOpen(true);
+      setImageToRestore(null);
+    }
   };
 
   const handleRestoreCancel = () => {
@@ -217,21 +246,24 @@ const ImageUploader = () => {
       const missingImages = [];
       await Promise.all(
         galleryImages.map(async (img) => {
-          // Only if the entry has a Cloudinary URL and backupKey (can restore)
-          // And not in the suppressed list (user previously cancelled)
-          if (img.url && img.backupKey && !suppressedKeys.includes(img.key)) {
-            const exists = await checkCloudinaryImage(img.url);
-            if (!exists) missingImages.push(img);
+          // Check if image has a Cloudinary URL and is not already marked as missing
+          if (img.cloudinaryUrl && img.status !== 'missing' && !suppressedKeys.includes(img.id)) {
+            const exists = await checkCloudinaryImage(img.cloudinaryUrl);
+            if (!exists) {
+              console.log("Image missing in Cloudinary:", img.cloudinaryUrl);
+              missingImages.push(img);
+            }
           }
         })
       );
       if (polling && missingImages.length > 0) {
+        console.log("Found missing images:", missingImages);
         // Only enqueue images not already in the current restore queue or being shown
         setMissingForRestore((prev) => {
           const needed = missingImages.filter(
             (img) =>
-              !prev.some((q) => q.key === img.key) &&
-              (!imageToRestore || img.key !== imageToRestore.key)
+              !prev.some((q) => q.id === img.id) &&
+              (!imageToRestore || img.id !== imageToRestore.id)
           );
           return prev.concat(needed);
         });
@@ -246,7 +278,6 @@ const ImageUploader = () => {
       polling = false;
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [galleryImages, imageToRestore, suppressedKeys]);
 
   // File selection handler; always set selectedFile to a File, and store backupKey separately
@@ -306,6 +337,7 @@ const ImageUploader = () => {
   // Updated the GalleryGrid component to hide file names and show only image previews
   // Updated logic to ensure images are rendered correctly
   // Ensure the `GalleryGrid` function renders images correctly
+  // Add a Restore button to trigger `handleRestoreRequest`
   const GalleryGrid = () => {
     if (!galleryImages || galleryImages.length === 0) {
       return <div className="text-gray-400 text-center">No images available</div>;
@@ -327,6 +359,19 @@ const ImageUploader = () => {
               />
             ) : (
               <div className="text-gray-400 text-center">No preview available</div>
+            )}
+            {image.status === 'missing' && (
+              <button
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={() => handleRestoreRequest(image)}
+              >
+                Restore
+              </button>
+            )}
+            {image.status === 'available' && (
+              <span className="mt-2 px-4 py-2 bg-green-500 text-white rounded">
+                Available
+              </span>
             )}
           </div>
         ))}

@@ -22,8 +22,16 @@ async function uploadImage(localPath, originalName) {
   });
 }
 
+// Add a test log to verify the response from Cloudinary
 async function fetchResource(publicId) {
-  return cloudinary.api.resource(publicId);
+  try {
+    const resource = await cloudinary.api.resource(publicId);
+    console.log("Cloudinary resource fetched successfully:", resource);
+    return resource;
+  } catch (error) {
+    console.error("Error fetching Cloudinary resource:", error);
+    throw error; // Re-throw the error for further handling
+  }
 }
 
 async function deleteResource(publicId) {
@@ -32,19 +40,60 @@ async function deleteResource(publicId) {
 
 const checkCloudinaryImage = async (url) => {
   try {
-    const resp = await fetch(url, { method: "HEAD" });
-    if (resp.ok) {
+    // Validate URL
+    if (!url || !url.includes('cloudinary.com')) {
+      console.log("Invalid Cloudinary URL:", url);
+      return false;
+    }
+
+    // Extract public_id from URL
+    const urlParts = url.split('/');
+    const publicId = urlParts[urlParts.length - 1].split('.')[0];
+    
+    if (!publicId) {
+      console.log("Could not extract public_id from URL:", url);
+      return false;
+    }
+
+    try {
+      // Try to fetch resource details from Cloudinary API
+      const resource = await cloudinary.api.resource(publicId);
+      console.log("Cloudinary resource exists:", resource.public_id);
       return true;
+    } catch (apiError) {
+      console.log("Cloudinary API error:", apiError.message);
+      
+      // Fallback to HTTP request if API fails
+      const resp = await fetch(url, { 
+        method: "HEAD",
+        headers: {
+          'User-Agent': 'Mozilla/5.0'
+        }
+      });
+      
+      if (resp.ok) {
+        console.log("Image exists (via HTTP):", url);
+        return true;
+      }
+
+      // If HEAD fails, try GET
+      const getResp = await fetch(url, { 
+        method: "GET",
+        headers: {
+          'User-Agent': 'Mozilla/5.0'
+        }
+      });
+
+      if (getResp.ok) {
+        console.log("Image exists (via GET):", url);
+        return true;
+      }
+
+      console.log("Image does not exist:", url);
+      return false;
     }
-    // If HEAD fails, fallback to GET
-    const getResp = await fetch(url, { method: "GET" });
-    if (!getResp.ok) {
-      console.log("No image");
-    }
-    return getResp.ok;
   } catch (error) {
-    console.error("Error checking Cloudinary image:", error);
-    console.log("No image");
+    console.error("Error checking Cloudinary image:", error.message);
     return false;
   }
 };
