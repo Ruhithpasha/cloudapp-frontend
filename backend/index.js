@@ -72,7 +72,10 @@ app.post('/upload', upload.single('image'), async (req, res) => {
       localPath: file.path,
       cloudinaryUrl: result.secure_url,
       cloudinaryPublicId: result.public_id,
-      uploadedAt: new Date().toISOString()
+      uploadedAt: new Date().toISOString(),
+      backupKey: req.body.backupKey || null,
+      backupData: req.body.backupData || null,
+      status: 'available'
     };
     
     db.push(imageData);
@@ -84,6 +87,10 @@ app.post('/upload', upload.single('image'), async (req, res) => {
     });
   } catch (err) {
     console.error('Upload error:', err);
+    // Clean up the uploaded file if Cloudinary upload fails
+    if (file.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
     res.status(500).json({ error: 'Failed to upload image', details: err.message });
   }
 });
@@ -95,12 +102,23 @@ app.get('/images', async (req, res) => {
     const db = getDB();
     const imagesWithStatus = await Promise.all(db.map(async img => {
       try {
+        // Check if local file exists
+        const hasLocalFile = fs.existsSync(img.localPath);
+        
         // Use helper to check Cloudinary resource
         await fetchResource(img.cloudinaryPublicId);
-        return { ...img, status: 'available' };
+        return { 
+          ...img, 
+          status: 'available',
+          hasLocalFile 
+        };
       } catch (err) {
         // Image not found in Cloudinary
-        return { ...img, status: 'missing' };
+        return { 
+          ...img, 
+          status: 'missing',
+          hasLocalFile: fs.existsSync(img.localPath)
+        };
       }
     }));
     
@@ -127,6 +145,7 @@ app.post('/restore/:id', async (req, res) => {
   try {
     // Check if local file exists
     if (!fs.existsSync(img.localPath)) {
+      console.error("Local file not found:", img.localPath);
       return res.status(404).json({ error: 'Local image file not found' });
     }
     
@@ -137,6 +156,7 @@ app.post('/restore/:id', async (req, res) => {
     img.cloudinaryUrl = result.secure_url;
     img.cloudinaryPublicId = result.public_id;
     img.restoredAt = new Date().toISOString();
+    img.status = 'available';
     updateImageRecord(img);
     
     res.json({ 

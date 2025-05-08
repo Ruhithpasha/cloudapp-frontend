@@ -180,7 +180,7 @@ const ImageUploader = () => {
       alert("Failed to restore image: " + err.message);
     } finally {
       setUploading(false);
-      setRestoreDialogOpen(false); // Close the dialog after restoration
+      setRestoreDialogOpen(false);
       setImageToRestore(null);
     }
   };
@@ -303,9 +303,16 @@ const ImageUploader = () => {
     setUploading(true);
     setErrorMsg("");
 
+    // Create local backup before uploading
+    const backupKey = `${LOCAL_BACKUP_IMAGE_KEY_PREFIX}${Date.now()}`;
+    const dataUrl = await createLocalBackup(selectedFile);
+
     // Updated the field name to match the backend
     const formData = new FormData();
-    formData.append("image", selectedFile); // Changed "file" to "image"
+    formData.append("image", selectedFile);
+    formData.append("backupKey", backupKey);
+    formData.append("backupData", dataUrl);
+    formData.append("originalName", selectedFile.name);
 
     try {
       const response = await fetch("http://localhost:3001/upload", {
@@ -320,7 +327,8 @@ const ImageUploader = () => {
 
       const data = await response.json();
       alert("File uploaded successfully!");
-      setUploadedUrl(data.path); // Use the server path for the uploaded file
+      setUploadedUrl(data.path);
+      loadGalleryImages(); // Refresh gallery after upload
     } catch (err) {
       setErrorMsg("Failed to upload: " + err.message);
     } finally {
@@ -331,10 +339,6 @@ const ImageUploader = () => {
   };
 
   // Gallery grid: shows restore for missing images, and avoids crash if old data format exists
-  // Updated the GalleryGrid component to hide file names and show only image previews
-  // Updated logic to ensure images are rendered correctly
-  // Ensure the `GalleryGrid` function renders images correctly
-  // Add a Restore button to trigger `handleRestoreRequest`
   const GalleryGrid = () => {
     if (!galleryImages || galleryImages.length === 0) {
       return <div className="text-gray-400 text-center">No images available</div>;
@@ -357,7 +361,7 @@ const ImageUploader = () => {
             ) : (
               <div className="text-gray-400 text-center">No preview available</div>
             )}
-            {image.status === 'missing' && (
+            {image.status === 'missing' && image.localPath && (
               <button
                 className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 onClick={() => handleRestoreRequest(image)}
@@ -365,11 +369,19 @@ const ImageUploader = () => {
                 Restore
               </button>
             )}
+            {image.status === 'missing' && !image.localPath && (
+              <span className="mt-2 px-4 py-2 bg-red-500 text-white rounded">
+                No Backup
+              </span>
+            )}
             {image.status === 'available' && (
               <span className="mt-2 px-4 py-2 bg-green-500 text-white rounded">
                 Available
               </span>
             )}
+            <div className="text-xs text-gray-400 mt-1">
+              {image.originalName}
+            </div>
           </div>
         ))}
       </div>
