@@ -39,7 +39,7 @@ const Home = () => {
             Your support helps motivate me to continue improving and maintaining this project.
           </p>
           <a
-            href="https://github.com/yourusername/cloudapp"
+            href="https://github.com/ruhithpasha/cloudapp"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center px-6 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors duration-300"
