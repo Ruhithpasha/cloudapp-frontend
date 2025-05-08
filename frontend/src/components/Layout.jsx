@@ -16,7 +16,7 @@ const Layout = ({ children }) => {
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                  CloudApp
+                  cloudSync
                 </span>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
