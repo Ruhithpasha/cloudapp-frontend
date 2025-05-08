@@ -180,7 +180,7 @@ const ImageUploader = () => {
       alert("Failed to restore image: " + err.message);
     } finally {
       setUploading(false);
-      setRestoreDialogOpen(true);
+      setRestoreDialogOpen(false); // Close the dialog after restoration
       setImageToRestore(null);
     }
   };
@@ -190,9 +190,9 @@ const ImageUploader = () => {
     console.log("Restore cancelled for image:", imageToRestore);
     
     // Suppress this key from restore until reload
-    if (imageToRestore && imageToRestore.key) {
-      setSuppressedKeys(prev => [...prev, imageToRestore.key]);
-      console.log("Suppressed key:", imageToRestore.key);
+    if (imageToRestore && imageToRestore.id) {
+      setSuppressedKeys(prev => [...prev, imageToRestore.id]);
+      console.log("Suppressed key:", imageToRestore.id);
     }
     setImageToRestore(null);
     dequeueNextRestore();
@@ -226,14 +226,11 @@ const ImageUploader = () => {
   // When missingForRestore changes, and dialog is not open, open dialog for first
   useEffect(() => {
     if (!restoreDialogOpen && missingForRestore.length > 0) {
-      let idx = 0;
-      while (idx < missingForRestore.length && !missingForRestore[idx].backupKey) idx++;
-      if (idx < missingForRestore.length) {
-        setImageToRestore(missingForRestore[idx]);
+      const nextImage = missingForRestore[0];
+      if (nextImage) {
+        setImageToRestore(nextImage);
         setRestoreDialogOpen(true);
-        setMissingForRestore((old) => old.slice(idx)); // trim queue to start at idx
-      } else {
-        setMissingForRestore([]);
+        setMissingForRestore(prev => prev.slice(1)); // Remove the first item
       }
     }
   }, [missingForRestore, restoreDialogOpen]);
@@ -251,7 +248,7 @@ const ImageUploader = () => {
             const exists = await checkCloudinaryImage(img.cloudinaryUrl);
             if (!exists) {
               console.log("Image missing in Cloudinary:", img.cloudinaryUrl);
-              missingImages.push(img);
+              missingImages.push({...img, status: 'missing'});
             }
           }
         })
