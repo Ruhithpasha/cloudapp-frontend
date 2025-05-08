@@ -57,10 +57,19 @@ const ImageUploader = () => {
   const createLocalBackup = (image) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target.result);
+      reader.onload = (e) => {
+        const backupData = {
+          data: e.target.result,
+          originalName: image.name,
+          timestamp: new Date().toISOString(),
+          type: image.type,
+          size: image.size
+        };
+        resolve(backupData);
+      };
       reader.onerror = reject;
       reader.readAsDataURL(image);
-      console.log("Creating local backup for image:", image);
+      console.log("Creating local backup for image:", image.name);
     });
   };
 
@@ -68,16 +77,37 @@ const ImageUploader = () => {
   const loadGalleryImages = async () => {
     try {
       console.log("Fetching gallery images from backend...");
-      const response = await fetch("http://localhost:3001/images");
+      const response = await fetch("/api/images");
       if (!response.ok) {
-        throw new Error("Failed to fetch images from backend");
+        throw new Error(`Failed to fetch images: ${response.statusText}`);
       }
       const images = await response.json();
-      console.log("Fetched images from backend:", images);
-      // Show all images, including missing ones
-      setGalleryImages(images);
+      
+      // Enhance images with local backup data
+      const enhancedImages = images.map(image => {
+        const backupKey = image.backupKey;
+        if (backupKey) {
+          const backupData = localStorage.getItem(backupKey);
+          if (backupData) {
+            try {
+              const parsedBackup = JSON.parse(backupData);
+              return {
+                ...image,
+                localBackup: parsedBackup
+              };
+            } catch (e) {
+              console.error("Error parsing backup data:", e);
+            }
+          }
+        }
+        return image;
+      });
+
+      console.log("Fetched images with local backups:", enhancedImages);
+      setGalleryImages(enhancedImages);
     } catch (err) {
       console.error("Error loading gallery images:", err);
+      setErrorMsg("Failed to load images: " + (err.message || "Network error. Please try again."));
       setGalleryImages([]); // Clear gallery on error
     }
   };
@@ -161,13 +191,13 @@ const ImageUploader = () => {
 
     try {
       setUploading(true);
-      const response = await fetch(`http://localhost:3001/restore/${imageToRestore.id}`, {
+      const response = await fetch(`/api/restore/${imageToRestore.id}`, {
         method: "POST",
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to restore image.");
+        throw new Error(errorData.error || `Restore failed: ${response.statusText}`);
       }
 
       const restoredImage = await response.json();
@@ -177,7 +207,7 @@ const ImageUploader = () => {
       loadGalleryImages();
     } catch (err) {
       console.error("Error restoring image:", err);
-      alert("Failed to restore image: " + err.message);
+      alert("Failed to restore image: " + (err.message || "Network error. Please try again."));
     } finally {
       setUploading(false);
       setRestoreDialogOpen(false);
@@ -287,9 +317,16 @@ const ImageUploader = () => {
     setSelectedFileBackupKey(null);
 
     if (file) {
-      const backupKey = `${LOCAL_BACKUP_IMAGE_KEY_PREFIX}${Date.now()}`;
-      const dataUrl = await createLocalBackup(file);
-      setSelectedFileBackupKey(backupKey);
+      try {
+        const backupKey = `${LOCAL_BACKUP_IMAGE_KEY_PREFIX}${Date.now()}`;
+        const backupData = await createLocalBackup(file);
+        localStorage.setItem(backupKey, JSON.stringify(backupData));
+        setSelectedFileBackupKey(backupKey);
+        console.log("Local backup created with key:", backupKey);
+      } catch (err) {
+        console.error("Error creating local backup:", err);
+        setErrorMsg("Failed to create local backup");
+      }
     }
   };
 
@@ -303,26 +340,28 @@ const ImageUploader = () => {
     setUploading(true);
     setErrorMsg("");
 
-    // Create local backup before uploading
-    const backupKey = `${LOCAL_BACKUP_IMAGE_KEY_PREFIX}${Date.now()}`;
-    const dataUrl = await createLocalBackup(selectedFile);
-
-    // Updated the field name to match the backend
-    const formData = new FormData();
-    formData.append("image", selectedFile);
-    formData.append("backupKey", backupKey);
-    formData.append("backupData", dataUrl);
-    formData.append("originalName", selectedFile.name);
-
     try {
-      const response = await fetch("http://localhost:3001/upload", {
+      // Create local backup before uploading
+      const backupKey = `${LOCAL_BACKUP_IMAGE_KEY_PREFIX}${Date.now()}`;
+      const backupData = await createLocalBackup(selectedFile);
+      localStorage.setItem(backupKey, JSON.stringify(backupData));
+      console.log("Local backup created with key:", backupKey);
+
+      // Updated the field name to match the backend
+      const formData = new FormData();
+      formData.append("image", selectedFile);
+      formData.append("backupKey", backupKey);
+      formData.append("backupData", JSON.stringify(backupData));
+      formData.append("originalName", selectedFile.name);
+
+      const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        const errorText = await response.json();
-        throw new Error(`Upload failed: ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed: ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -330,7 +369,8 @@ const ImageUploader = () => {
       setUploadedUrl(data.path);
       loadGalleryImages(); // Refresh gallery after upload
     } catch (err) {
-      setErrorMsg("Failed to upload: " + err.message);
+      console.error("Upload error:", err);
+      setErrorMsg("Failed to upload: " + (err.message || "Network error. Please try again."));
     } finally {
       setUploading(false);
       setSelectedFile(null);
@@ -354,7 +394,13 @@ const ImageUploader = () => {
             <div className="aspect-square relative bg-gray-50">
               {image.filename ? (
                 <img
-                  src={`http://localhost:3001/uploads/${image.filename}`}
+                  src={`/api/uploads/${image.filename}`}
+                  alt={image.originalName}
+                  className="w-full h-full object-cover"
+                />
+              ) : image.localBackup?.data ? (
+                <img
+                  src={image.localBackup.data}
                   alt={image.originalName}
                   className="w-full h-full object-cover"
                 />
@@ -370,7 +416,7 @@ const ImageUploader = () => {
               <div className="text-sm text-gray-600 mb-2 truncate" title={image.originalName}>
                 {image.originalName}
               </div>
-              {image.status === 'missing' && image.localPath && (
+              {image.status === 'missing' && image.localBackup && (
                 <button
                   className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-300 flex items-center justify-center gap-2"
                   onClick={() => handleRestoreRequest(image)}
@@ -381,7 +427,7 @@ const ImageUploader = () => {
                   Restore
                 </button>
               )}
-              {image.status === 'missing' && !image.localPath && (
+              {image.status === 'missing' && !image.localBackup && (
                 <div className="w-full px-4 py-2 bg-red-100 text-red-600 rounded-lg flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />

@@ -1,16 +1,21 @@
-import React from 'react';
-// import HeroSection from './components/HeroSection';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+import Home from './pages/Home';
 import ImageUploader from './components/ImageUploader';
+import LocalStorage from './pages/LocalStorage';
 
-const App = () => {
+function App() {
   return (
-    <div className="app-container">
-      {/* <HeroSection />
-       */}
-      <h1 className="text-3xl font-bold text-center my-8">Image Uploader</h1>
-      <ImageUploader />
-    </div>
+    <Router>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/cloudinary" element={<ImageUploader />} />
+          <Route path="/local" element={<LocalStorage />} />
+        </Routes>
+      </Layout>
+    </Router>
   );
-};
+}
 
 export default App;
