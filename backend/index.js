@@ -210,6 +210,40 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Update the endpoint to match frontend request
+app.get('/local-images', async (req, res) => {
+  try {
+    const uploadsDir = path.join(__dirname, 'uploads');
+    const files = await fs.promises.readdir(uploadsDir);
+    
+    const images = await Promise.all(
+      files.map(async (filename) => {
+        const filePath = path.join(uploadsDir, filename);
+        const stats = await fs.promises.stat(filePath);
+        
+        return {
+          filename,
+          originalName: filename,
+          size: stats.size,
+          createdAt: stats.birthtime,
+          path: `/api/uploads/${filename}`
+        };
+      })
+    );
+
+    // Filter out non-image files
+    const imageFiles = images.filter(file => {
+      const ext = path.extname(file.filename).toLowerCase();
+      return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
+    });
+
+    res.json(imageFiles);
+  } catch (error) {
+    console.error('Error listing local images:', error);
+    res.status(500).json({ error: 'Failed to list local images' });
+  }
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

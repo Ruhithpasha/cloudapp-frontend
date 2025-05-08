@@ -23,6 +23,19 @@ const POLL_INTERVAL_MS = 30000; // 30 seconds
 // Polling interval for checking missing images
 // and restoring them if needed
 
+// Add this helper function at the top of the file, after the imports
+const getOptimizedImageUrl = (url) => {
+  if (!url) return '';
+  // If it's a Cloudinary URL, add optimization parameters
+  if (url.includes('cloudinary.com')) {
+    // Add f_auto for automatic format selection
+    // Add q_auto for automatic quality optimization
+    // Add w_auto for automatic width based on device
+    // Add c_scale for proper scaling
+    return url.replace('/upload/', '/upload/f_auto,q_auto,w_auto,c_scale/');
+  }
+  return url;
+};
 
 // ImageUploader component
 // This component allows users to upload images to Cloudinary and manage local backups
@@ -397,12 +410,25 @@ const ImageUploader = () => {
                   src={`/api/uploads/${image.filename}`}
                   alt={image.originalName}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : image.cloudinaryUrl ? (
+                <img
+                  src={getOptimizedImageUrl(image.cloudinaryUrl)}
+                  alt={image.originalName}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    console.error('Error loading image:', image.cloudinaryUrl);
+                    e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2Utd2lkdGg9IjIiIGQ9Ik00IDE2bDQuNTg2LTQuNTg2YTIgMiAwIDAxMi44MjggMEwxNiAxNm0tMi0ybDEuNTg2LTEuNTg2YTIgMiAwIDAxMi44MjggMEwyMCAxNG0tNi02aC4wMU02IDIwaDEyYTIgMiAwIDAwMi0yVjZhMiAyIDAgMDAtMi0ySDZhMiAyIDAgMDAtMiAydjEyYTIgMiAwIDAwMiAyeiIvPjwvc3ZnPg==';
+                  }}
                 />
               ) : image.localBackup?.data ? (
                 <img
                   src={image.localBackup.data}
                   alt={image.originalName}
                   className="w-full h-full object-cover"
+                  loading="lazy"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-50">
