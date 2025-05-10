@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../config';
 
 const LocalStorage = () => {
   const [localImages, setLocalImages] = useState([]);
@@ -8,16 +9,25 @@ const LocalStorage = () => {
   useEffect(() => {
     const fetchLocalImages = async () => {
       try {
-        setLoading(true);
-        const response = await fetch('/api/local-images');
+        console.log("Attempting to fetch local images from:", `${API_URL}/local-images`);
+        const response = await fetch(`${API_URL}/local-images`);
+        console.log("Local images response status:", response.status);
+        
         if (!response.ok) {
           throw new Error(`Failed to fetch local images: ${response.statusText}`);
         }
-        const images = await response.json();
-        setLocalImages(images);
+        
+        const data = await response.json();
+        console.log("Successfully received local images:", data);
+        setLocalImages(data);
       } catch (err) {
-        console.error('Error fetching local images:', err);
-        setError(err.message);
+        console.error("Error fetching local images:", err);
+        console.error("Full error details:", {
+          message: err.message,
+          stack: err.stack,
+          apiUrl: API_URL
+        });
+        setError("Failed to fetch local images: " + err.message);
       } finally {
         setLoading(false);
       }
